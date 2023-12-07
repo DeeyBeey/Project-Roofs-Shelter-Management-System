@@ -270,3 +270,142 @@ VALUES
 SELECT * FROM volunteer_shelter;
 
 -- TODO: 1. Donation, 2. Meal, 3. Resident Meal.
+
+-- Procedures START:
+
+DELIMITER //
+
+CREATE PROCEDURE InsertNewAdmin(
+    IN admin_email VARCHAR(255),
+    IN admin_username VARCHAR(255),
+    IN admin_password VARCHAR(255)
+)
+BEGIN
+    DECLARE hashed_password VARBINARY(255);
+    
+    -- Hash the provided password
+    SET hashed_password = AES_ENCRYPT(admin_password, 'CS5200');
+    
+    -- Insert new admin into pr_admin table
+    INSERT INTO pr_admin (email_id, username, admin_password)
+    VALUES (admin_email, admin_username, hashed_password);
+    
+    SELECT "New admin added successfully" AS status;
+END //
+
+DELIMITER ;
+
+
+DELIMITER //
+
+CREATE PROCEDURE GetAllAdmins()
+BEGIN
+    -- Select email, username, and password of all admins
+    SELECT email_id, username, CAST(AES_DECRYPT(admin_password, 'CS5200') AS CHAR) AS pass
+    FROM pr_admin;
+END //
+
+DELIMITER ;
+
+DROP PROCEDURE GetAllAdmins;
+
+DELIMITER //
+
+CREATE PROCEDURE GetAllShelters()
+BEGIN
+    -- Select details of all shelters
+    SELECT * FROM shelter;
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+CREATE PROCEDURE GetShelterStatistics(IN shelter_name_p VARCHAR(255))
+BEGIN
+    -- Declare variables to store statistics
+    DECLARE resident_count INT;
+    DECLARE donation_count INT;
+    DECLARE volunteer_count INT;
+    DECLARE meals_provided_count INT;
+    DECLARE services_list VARCHAR(255);
+
+    -- Fetch statistics for the given shelter
+	SELECT COUNT(*) INTO resident_count
+	FROM resident
+	WHERE shelter_name = shelter_name_p 
+	AND (leave_date IS NULL OR leave_date > CURRENT_DATE);
+
+
+    SELECT COUNT(*) INTO donation_count
+    FROM donation
+    WHERE shelter_name = shelter_name_p;
+
+    SELECT COUNT(DISTINCT volunteer_id) INTO volunteer_count
+    FROM volunteer_shelter
+    WHERE shelter_name = shelter_name_p;
+
+    SELECT COUNT(meal_id) INTO meals_provided_count
+    FROM meal
+    WHERE shelter_name = shelter_name_p;
+
+    SELECT GROUP_CONCAT(DISTINCT service_name) INTO services_list
+    FROM shelter_service
+    WHERE shelter_name = shelter_name_p;
+
+    -- Print the statistics
+    SELECT
+        resident_count AS 'Number of Residents',
+        donation_count AS 'Number of Donations',
+        volunteer_count AS 'Number of Volunteers',
+        meals_provided_count AS 'Number of Meals Provided',
+        services_list AS 'Services Provided'
+    FROM DUAL;
+
+END //
+
+DELIMITER ;
+
+CALL GetShelterStatistics("Holy Hearts Shelter");
+
+DELIMITER //
+CREATE PROCEDURE ViewResidentsInShelter(IN shelter_name_p VARCHAR(255))
+BEGIN
+    -- Fetch and display details of all residents in the specified shelter
+    SELECT
+        resident_id,
+        first_name,
+        last_name,
+        DATE_FORMAT(dob, '%Y-%m-%d') AS date_of_birth,
+        TIMESTAMPDIFF(YEAR, dob, CURRENT_DATE) AS age,
+        join_date,
+        leave_date
+    FROM resident
+    WHERE shelter_name = shelter_name_p
+    AND (leave_date IS NULL OR leave_date > CURRENT_DATE);
+END //
+
+DELIMITER ;
+
+DELIMITER //
+CREATE PROCEDURE ViewPastResidentsInShelter(IN shelter_name_p VARCHAR(255))
+BEGIN
+    -- Fetch and display details of all residents in the specified shelter
+    SELECT
+        resident_id,
+        first_name,
+        last_name,
+        DATE_FORMAT(dob, '%Y-%m-%d') AS date_of_birth,
+        TIMESTAMPDIFF(YEAR, dob, CURRENT_DATE) AS age,
+        join_date,
+        leave_date
+    FROM resident
+    WHERE shelter_name = shelter_name_p
+    AND (leave_date IS NOT NULL OR leave_date < CURRENT_DATE);
+END //
+
+DELIMITER ;
+
+
+
+
