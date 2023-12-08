@@ -223,3 +223,133 @@ def call_view_employment_records_procedure(db_connection, resident_id, shelter_n
 
     except pymysql.Error as e:
         print(f"Error: {e}")
+
+def call_view_shelter_volunteers_procedure(db_connection, shelter_name):
+    try:
+        with db_connection.cursor() as cursor:
+            cursor.callproc('ViewShelterVolunteers', (shelter_name,))
+            result = cursor.fetchall()
+            print_table(result)
+    except pymysql.MySQLError as e:
+        print(f"Error calling ViewShelterVolunteers procedure: {e}")
+
+def call_view_shelter_donations_procedure(db_connection, shelter_name):
+    try:
+        with db_connection.cursor() as cursor:
+            cursor.callproc('ViewShelterDonations', (shelter_name,))
+            result = cursor.fetchall()
+            print_table(result)
+    except pymysql.MySQLError as e:
+        print(f"Error calling ViewShelterDonations procedure: {e}")
+
+def call_add_donation_to_shelter_procedure(db_connection, first_name, last_name, donation_date, donation_description, shelter_name):
+    try:
+        with db_connection.cursor() as cursor:
+            cursor.callproc('AddDonationToShelter', (first_name, last_name, donation_date, donation_description, shelter_name))
+            result = cursor.fetchone()
+            print(result['status'])
+    except pymysql.MySQLError as e:
+        print(f"Error calling AddDonationToShelter procedure: {e}")
+
+def call_insert_volunteer_procedure(db_connection, first_name, last_name, phone_no, shelter_name):
+    try:
+        cursor = db_connection.cursor()
+        cursor.callproc('InsertVolunteer', (first_name, last_name, phone_no, shelter_name))
+        db_connection.commit()
+        results = cursor.fetchone()
+        print(results['status'])
+    except Exception as e:
+        print(f"Error calling InsertVolunteer procedure: {e}")
+
+def call_delete_volunteer_procedure(db_connection, volunteer_id, shelter_name):
+    try:
+        cursor = db_connection.cursor()
+        cursor.callproc('DeleteVolunteer', (volunteer_id, shelter_name))
+        db_connection.commit()
+        results = cursor.fetchone()
+        print(results['status'])
+    except Exception as e:
+        print(f"Error calling DeleteVolunteer procedure: {e}")
+
+import pymysql
+
+def call_add_resident_health_record_procedure(
+    db_connection, resident_id, shelter_name, health_report_date,
+    health_report_details, resident_conditions, resident_allergies, resident_medication
+):
+    try:
+        cursor = db_connection.cursor()
+        cursor.callproc(
+            'AddResidentHealthRecord',
+            (resident_id, shelter_name, health_report_date,
+             health_report_details, resident_conditions, resident_allergies, resident_medication)
+        )
+        db_connection.commit()
+        result = cursor.fetchone()
+        print(result['status'])
+    except pymysql.Error as e:
+        print(f"Error calling AddResidentHealthRecord procedure: {e}")
+
+def update_resident_employment_record(db_connection, resident_id, shelter_name, employment_status, employer_name, job_title, employment_begin_date, employment_end_date):
+    try:
+        with db_connection.cursor() as cursor:
+            cursor.callproc(
+                'UpdateResidentEmploymentRecord',
+                (resident_id, shelter_name, employment_status, employer_name, job_title, employment_begin_date, employment_end_date)
+            )
+            db_connection.commit()
+            result = cursor.fetchone()
+            print(result['status'])
+    except pymysql.MySQLError as e:
+        print(f"Error calling UpdateResidentEmploymentRecord procedure: {e}")
+
+import pymysql
+import pandas as pd
+import matplotlib.pyplot as plt
+
+def call_and_plot_stored_procedure(connection, procedure_name, plot_kind='pie', y_column=None, x_column=None,bins=None, labels_column=None, autopct='%1.1f%%', startangle=90, title=None, xlabel='', ylabel='', edgecolor=None):
+    # Create a cursor
+    cursor = connection.cursor()
+
+    try:
+        # Call the stored procedure
+        cursor.callproc(procedure_name)
+
+        # Fetch the results from the stored procedure
+        results = cursor.fetchall()
+
+        # Create a DataFrame from the results
+        columns = [desc[0] for desc in cursor.description]
+        df = pd.DataFrame(results, columns=columns)
+
+        # Plot the data
+        if plot_kind == 'pie':
+            df.plot(kind=plot_kind, y=y_column, labels=df[labels_column], autopct=autopct, startangle=startangle)
+        else:
+            df.plot(kind=plot_kind, x=labels_column, y=y_column, color='skyblue')
+
+        plt.title(title)
+        plt.ylabel(ylabel)
+        plt.show()
+
+    finally:
+        # Close the cursor
+        cursor.close()
+
+def visualize_resident_count_by_shelter(connection):
+    try:
+        query = "CALL GetResidentCountByShelter();"
+        df = pd.read_sql(query, connection)
+
+        # Plot the data
+        df.plot(kind='bar', x='shelter_name', y='resident_count', color='skyblue')
+        plt.title('Number of Residents in Each Shelter')
+        plt.xlabel('Shelter Name')
+        plt.ylabel('Count')
+        plt.show()
+
+    except Exception as e:
+        print(f"Error: {e}")
+
+
+

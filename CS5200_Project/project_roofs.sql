@@ -269,6 +269,15 @@ VALUES
 -- retrieve which volunteer volunteers from which shelter
 SELECT * FROM volunteer_shelter;
 
+INSERT INTO donation
+VALUES
+("Mack", "Birch", "2023-12-01", "Meal for 20 people", "Boston Community Shelter"),
+("Jack", "Mullins", "2023-12-02", "Christmas gifts for 20 people", "Boston Community Shelter"),
+("Veronica", "Sanders", "2023-11-30", "Knitted sweaters for the elderly", "Brigham Shelter"),
+("Mia", "Martin", "2023-11-28", "Chocolates for everyone", "Brigham Shelter"),
+("Sal", "King", "2023-12-05", "Snow shoes", "Holy Hearts Shelter"),
+("Daniel", "Scott", "2023-12-08", "Groceries", "Holy Hearts Shelter");
+
 -- TODO: 1. Donation, 2. Meal, 3. Resident Meal.
 
 -- Procedures START:
@@ -468,8 +477,6 @@ DELIMITER ;
 
 DELIMITER //
 
-DELIMITER //
-
 CREATE PROCEDURE UpdateLeaveDate(
     IN resident_id_p INT,
     IN shelter_name_p VARCHAR(255),
@@ -622,6 +629,237 @@ END //
 
 DELIMITER ;
 
+DELIMITER //
+
+CREATE PROCEDURE ViewShelterVolunteers(
+    IN shelter_name_p VARCHAR(255)
+)
+BEGIN
+    -- Fetch the volunteer information for the specified shelter
+    SELECT v.volunteer_id, v.first_name, v.last_name, v.phone_no
+    FROM volunteer v
+    INNER JOIN volunteer_shelter vs ON v.volunteer_id = vs.volunteer_id
+    WHERE vs.shelter_name = shelter_name_p;
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+CREATE PROCEDURE ViewShelterDonations(
+    IN shelter_name_p VARCHAR(255)
+)
+BEGIN
+    -- Fetch the donation information for the specified shelter
+    SELECT first_name, last_name, donation_date, donation_description
+    FROM donation
+    WHERE shelter_name = shelter_name_p;
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+CREATE PROCEDURE AddDonationToShelter(
+    IN first_name_p VARCHAR(255),
+    IN last_name_p VARCHAR(255),
+    IN donation_date_p DATE,
+    IN donation_description_p VARCHAR(255),
+    IN shelter_name_p VARCHAR(255)
+)
+BEGIN
+    INSERT INTO donation (first_name, last_name, donation_date, donation_description, shelter_name)
+    VALUES (first_name_p, last_name_p, donation_date_p, donation_description_p, shelter_name_p);
+
+    SELECT '\nDonation added successfully.' AS status;
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+CREATE PROCEDURE InsertVolunteer(
+    IN first_name_p VARCHAR(255),
+    IN last_name_p VARCHAR(255),
+    IN phone_no_p VARCHAR(20),
+    IN shelter_name_p VARCHAR(255)
+)
+BEGIN
+    DECLARE volunteer_id INT;
+
+    INSERT INTO volunteer (first_name, last_name, phone_no)
+    VALUES (first_name_p, last_name_p, phone_no_p);
+
+    SELECT LAST_INSERT_ID() INTO volunteer_id;
+
+    INSERT INTO volunteer_shelter (volunteer_id, shelter_name)
+    VALUES (volunteer_id, shelter_name_p);
+
+    SELECT '\nVolunteer added successfully.' AS status;
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+CREATE PROCEDURE DeleteVolunteer(
+    IN volunteer_id_p INT,
+    IN shelter_name_p VARCHAR(255)
+)
+BEGIN
+    DECLARE volunteer_shelter_name VARCHAR(255);
+
+    -- Fetch the shelter_name associated with the volunteer
+    SELECT shelter_name INTO volunteer_shelter_name
+    FROM volunteer_shelter
+    WHERE volunteer_id = volunteer_id_p
+    LIMIT 1;
+
+    -- Check if the provided shelter_name matches the volunteer's shelter
+    IF volunteer_shelter_name = shelter_name_p THEN
+        -- Delete the volunteer record
+        DELETE FROM volunteer
+        WHERE volunteer_id = volunteer_id_p;
+
+        SELECT '\nVolunteer record deleted successfully.' AS status;
+    ELSE
+        SELECT '\nError: Provided Shelter Name does not match the volunteer\'s shelter.' AS status;
+    END IF;
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+CREATE PROCEDURE AddResidentHealthRecord(
+    IN resident_id_p INT,
+    IN shelter_name_p VARCHAR(255),
+    IN health_report_date_p DATE,
+    IN health_report_details_p VARCHAR(255),
+    IN resident_conditions_p VARCHAR(255),
+    IN resident_allergies_p VARCHAR(255),
+    IN resident_medications_p VARCHAR(255)
+)
+BEGIN
+    DECLARE resident_shelter_name VARCHAR(255);
+
+    -- Fetch the shelter_name associated with the resident
+    SELECT shelter_name INTO resident_shelter_name
+    FROM resident
+    WHERE resident_id = resident_id_p
+    LIMIT 1;  -- Limit the result to one row
+
+    -- Check if the provided shelter_name matches the resident's shelter
+    IF resident_shelter_name = shelter_name_p THEN
+        -- Insert the health record
+        INSERT INTO resident_health (
+            resident_id,
+            health_report_date,
+            health_report_details,
+            resident_condition,
+            resident_allergies,
+            resident_medication
+        )
+        VALUES (
+            resident_id_p,
+            health_report_date_p,
+            health_report_details_p,
+            resident_conditions_p,
+            resident_allergies_p,
+            resident_medications_p
+            
+        );
+
+        SELECT 'Resident health record added successfully.' AS status;
+    ELSE
+        SELECT 'Error: Provided Shelter Name does not match the resident\'s shelter.' AS status;
+    END IF;
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+DELIMITER //
+
+CREATE PROCEDURE UpdateResidentEmploymentRecord(
+    IN resident_id_p INT,
+    IN shelter_name_p VARCHAR(255),
+    IN employment_status_p BOOLEAN,
+    IN employer_name_p VARCHAR(255),
+    IN job_title_p VARCHAR(255),
+    IN employment_begin_date_p DATE,
+    IN employment_end_date_p DATE
+)
+BEGIN
+    -- Declare a variable to store the count of matching records
+    DECLARE matching_records_count INT;
+
+    -- Check if there is a matching record in the resident table
+    SELECT COUNT(*)
+    INTO matching_records_count
+    FROM resident
+    WHERE resident_id = resident_id_p AND shelter_name = shelter_name_p;
+
+    -- If there is a match, update the employment record
+    IF matching_records_count > 0 THEN
+        -- Update the employment record
+        UPDATE resident_employment
+        SET
+            employment_status = employment_status_p,
+            employer_name = employer_name_p,
+            job_title = job_title_p,
+            employment_begin = employment_begin_date_p,
+            employment_end = employment_end_date_p
+        WHERE resident_id = resident_id_p;
+
+        SELECT 'Resident employment record updated successfully.' AS status;
+    ELSE
+        SELECT 'Error: Provided Resident ID or Shelter Name does not match the existing records.' AS status;
+    END IF;
+END //
+
+DELIMITER ;
+
+DELIMITER //
+CREATE PROCEDURE GetGenderDistribution()
+BEGIN
+    -- Retrieve the gender distribution of residents
+    SELECT gender, COUNT(*) as gender_count
+    FROM resident
+    GROUP BY gender;
+END //
+DELIMITER ;
+
+DELIMITER //
+
+CREATE PROCEDURE GetResidentCountByShelter()
+BEGIN
+    SELECT
+        shelter_name,
+        COUNT(*) AS resident_count
+    FROM resident
+    GROUP BY shelter_name
+    ORDER BY shelter_name;
+END //
+
+DELIMITER ;
+
+SELECT join_date, COUNT(*) as join_count FROM resident GROUP BY join_date;
+
+DELIMITER //
+
+CREATE PROCEDURE GetJoinCountByDate()
+BEGIN
+    -- Select join date and count for each join date
+    SELECT join_date, COUNT(*) AS join_count
+    FROM resident
+    GROUP BY join_date;
+
+END //
+
+DELIMITER ;
+        
 
 
 
