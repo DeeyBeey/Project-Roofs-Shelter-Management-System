@@ -6,13 +6,22 @@ def is_valid_email(email):
     email_regex = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
     return re.match(email_regex, email) is not None
 
+def is_valid_date(date_string):
+    date_regex = r'^(?:\d{4})-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$'
+    return re.match(date_regex, date_string) is not None
+
+def is_valid_phone_number(phone_number):
+    phone_regex = r'^\+?1?\s*[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}$'
+    return re.match(phone_regex, phone_number) is not None
+
 def resident_manipulation(db_connection, shelter_name):
     while True:
         print(f"\nManage residents of {shelter_name}")
         print("1. View current residents")
         print("2. View past residents")
-        print("2. Update current resident records")
-        print("3. Delete current resident records")
+        print("3. Add new resident record")
+        print("4. Update current resident leave date to indicate they have left the shelter (view current residents first to know their IDs)")
+        print("5. Delete current resident record (view current residents first to know their IDs)")
 
         choice = input("\nEnter your choice (1/2/3/4): ")
 
@@ -21,7 +30,64 @@ def resident_manipulation(db_connection, shelter_name):
 
         if choice == "2":
             call_get_all_past_residents_procedure(db_connection, shelter_name)
+        
+        if choice == "3":
+            while True:
+                first_name = input("Enter first name: ")
+                last_name = input("Enter last name: ")
+                gender = input("Enter gender: ")
+                dob = input("Enter date of birth (YYYY-MM-DD): ")
+                phone = input("Enter phone number: ")
 
+                if any(not value.strip() for value in [first_name, last_name, gender, dob, phone]):
+                    print("Invalid input. Please provide all required information.")
+                    continue
+
+                if not is_valid_phone_number(phone):
+                    print("Invalid phone number. Please enter a valid US phone number.")
+                    continue
+
+                join_date = input("Enter join date (YYYY-MM-DD): ")
+
+                if not (is_valid_date(dob) and is_valid_date(join_date)):
+                    print("Invalid date format. Please use YYYY-MM-DD.")
+                    continue
+
+                break
+
+            call_insert_new_resident_procedure(db_connection, first_name, last_name, shelter_name, gender, dob, phone, join_date)
+
+        if choice == "4":
+            while True:
+                try:
+                    resident_id = int(input("Enter the ID of resident whose records you want to update: "))
+
+                    if resident_id < 0:
+                        print("Invalid resident ID. Please enter a non-negative integer.")
+                        continue
+
+                    leave_date = input("Enter the date on which they left the shelter (YYYY-MM-DD): ")
+
+                    if not is_valid_date(leave_date):
+                        print("Invalid date format. Please use YYYY-MM-DD.")
+                        continue
+
+                    update_leave_date_procedure(db_connection, resident_id, shelter_name, leave_date)
+                    break
+
+                except ValueError:
+                    print("Invalid input. Please enter a valid resident ID.")
+
+        if choice == "5":
+            while True:
+                try:
+                    resident_id = int(input("Enter the ID of resident whose records you want to delete: "))
+                    if resident_id <= 0:
+                        raise ValueError("Resident ID must be a positive integer.")
+                    break 
+                except ValueError:
+                    print(f"Error: Enter an integer value for ID")
+            remove_resident_procedure(db_connection, resident_id, shelter_name)
 
 
 def main():
@@ -34,7 +100,6 @@ def main():
 
         db_connection = connect_to_database(host, user, password, database)
 
-        # Check if the database connection is successful before proceeding
         if db_connection:
             break
 

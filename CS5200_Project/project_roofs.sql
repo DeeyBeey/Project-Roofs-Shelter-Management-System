@@ -373,13 +373,14 @@ CREATE PROCEDURE ViewResidentsInShelter(IN shelter_name_p VARCHAR(255))
 BEGIN
     -- Fetch and display details of all residents in the specified shelter
     SELECT
-        resident_id,
-        first_name,
-        last_name,
-        DATE_FORMAT(dob, '%Y-%m-%d') AS date_of_birth,
-        TIMESTAMPDIFF(YEAR, dob, CURRENT_DATE) AS age,
-        join_date,
-        leave_date
+        resident_id AS id,
+        first_name AS FirstName,
+        last_name AS LastName,
+        gender AS Gender,
+        TIMESTAMPDIFF(YEAR, dob, CURRENT_DATE) AS Age,
+        phone_no AS PhoneNumber,
+        join_date AS JoinDate,
+        leave_date AS LeaveDate
     FROM resident
     WHERE shelter_name = shelter_name_p
     AND (leave_date IS NULL OR leave_date > CURRENT_DATE);
@@ -392,19 +393,118 @@ CREATE PROCEDURE ViewPastResidentsInShelter(IN shelter_name_p VARCHAR(255))
 BEGIN
     -- Fetch and display details of all residents in the specified shelter
     SELECT
-        resident_id,
-        first_name,
-        last_name,
-        DATE_FORMAT(dob, '%Y-%m-%d') AS date_of_birth,
-        TIMESTAMPDIFF(YEAR, dob, CURRENT_DATE) AS age,
-        join_date,
-        leave_date
+		resident_id AS id,
+        first_name AS FirstName,
+        last_name AS LastName,
+        gender AS Gender,
+        TIMESTAMPDIFF(YEAR, dob, CURRENT_DATE) AS Age,
+        phone_no AS PhoneNumber,
+        join_date AS JoinDate,
+        leave_date AS LeaveDate
     FROM resident
     WHERE shelter_name = shelter_name_p
     AND (leave_date IS NOT NULL OR leave_date < CURRENT_DATE);
 END //
 
+
 DELIMITER ;
+
+DELIMITER //
+CREATE PROCEDURE InsertNewResident(
+    IN first_name_p VARCHAR(255),
+    IN last_name_p VARCHAR(255),
+    IN shelter_name_p VARCHAR(255),
+    IN gender_p VARCHAR(20),
+    IN dob_p DATE,
+    IN phone_no_p VARCHAR(20),
+    IN join_date_p DATE
+)
+BEGIN
+    DECLARE new_resident_id INT;  -- Declare variable to store the new resident ID
+    
+    -- Check if join_date is not greater than the current date
+    IF join_date_p > CURDATE() THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Invalid join date. Please enter a date not greater than the current date.';
+    ELSE
+        -- Insert a new resident record
+        INSERT INTO resident (first_name, last_name, shelter_name, gender, dob, phone_no, join_date)
+        VALUES (first_name_p, last_name_p, shelter_name_p, gender_p, dob_p, phone_no_p, join_date_p);
+
+        -- Get the ID of the newly inserted resident
+        SELECT LAST_INSERT_ID() INTO new_resident_id;
+    END IF;
+    
+    -- Return the ID of the newly inserted resident
+    SELECT new_resident_id AS new_resident_id;
+END //
+
+DELIMITER ;
+
+DELIMITER //
+CREATE PROCEDURE RemoveResident(
+    IN resident_id_p INT,
+    IN shelter_name_p VARCHAR(255)
+)
+BEGIN
+    DECLARE shelter_name_db VARCHAR(255);
+
+    -- Fetch the shelter_name associated with the resident
+    SELECT shelter_name INTO shelter_name_db
+    FROM resident
+    WHERE resident_id = resident_id_p;
+
+    -- Check if the resident exists and belongs to the specified shelter
+    IF shelter_name_db IS NOT NULL AND shelter_name_db = shelter_name_p THEN
+        -- Remove the resident record
+        DELETE FROM resident
+        WHERE resident_id = resident_id_p;
+
+        SELECT 'Resident removed successfully.' AS status;
+    ELSE
+        SELECT 'Error: Resident not found or not part of the specified shelter.' AS status;
+    END IF;
+END //
+DELIMITER ;
+
+DELIMITER //
+
+DELIMITER //
+
+CREATE PROCEDURE UpdateLeaveDate(
+    IN resident_id_p INT,
+    IN shelter_name_p VARCHAR(255),
+    IN leave_date_p DATE
+)
+BEGIN
+    DECLARE shelter_name_db VARCHAR(255);
+    DECLARE join_date_db DATE;
+
+    -- Fetch the shelter_name and join_date associated with the resident
+    SELECT shelter_name, join_date INTO shelter_name_db, join_date_db
+    FROM resident
+    WHERE resident_id = resident_id_p;
+
+    -- Check if the provided shelter_name matches the shelter_name associated with the resident
+    IF shelter_name_db = shelter_name_p THEN
+        -- Check if the provided leave date is valid
+        IF leave_date_p IS NOT NULL AND leave_date_p <= CURRENT_DATE AND leave_date_p >= join_date_db THEN
+            -- Update the leave date for the resident
+            UPDATE resident
+            SET leave_date = leave_date_p
+            WHERE resident_id = resident_id_p;
+
+            SELECT 'Leave date updated successfully.' AS status;
+        ELSE
+            SELECT 'Error: Invalid leave date. Leave date must be less than or same as current date and greater than or equal to join date.' AS status;
+        END IF;
+    ELSE
+        SELECT 'Error: Provided Shelter Name does not match the resident\'s shelter.' AS status;
+    END IF;
+END //
+
+DELIMITER ;
+
+
 
 
 

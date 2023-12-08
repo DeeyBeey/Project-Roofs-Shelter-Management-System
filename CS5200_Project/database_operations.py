@@ -30,11 +30,20 @@ def connect_to_database(host, user, password, database):
             print(f"Error connecting to the database: {e}")
         return None
 
-
 def close_connection(connection):
     if connection:
         connection.close()
         print("\nConnection closed. Thank you for using Project Roofs!")
+
+def print_table(result):
+    if not result:
+        print("No records found.")
+        return
+    
+    headers = result[0].keys()
+    table_data = [[row[col] for col in headers] for row in result]
+    table = tabulate(table_data, headers=headers, tablefmt="pretty")
+    print(table)
 
 def add_new_admin(connection, email, username, password):
     try:
@@ -86,56 +95,20 @@ def admin_login(connection, username, password):
 def call_get_all_admins_procedure(connection):
     try:
         with connection.cursor() as cursor:
-            # Call the stored procedure
             cursor.callproc('GetAllAdmins')
-            
-            # Fetch all the results
             result = cursor.fetchall()
+            print_table(result)
 
-           # Check if there are shelters to display
-            if not result:
-                print("No admins found.")
-                return
-
-            # Extract column headers
-            headers = result[0].keys()
-
-            # Convert the list of dictionaries into a list of lists
-            table_data = [[row[col] for col in headers] for row in result]
-
-            # Use tabulate to format the data as a table
-            table = tabulate(table_data, headers=headers, tablefmt="pretty")
-
-            # Print the formatted table
-            print(table)
     except pymysql.Error as e:
         print(f"Error: {e}")
 
 def call_get_all_shelters_procedure(connection):
     try:
         with connection.cursor() as cursor:
-            # Call the stored procedure
             cursor.callproc('GetAllShelters')
-
-            # Fetch all the results
             result = cursor.fetchall()
+            print_table(result)
 
-            # Check if there are shelters to display
-            if not result:
-                print("No shelters found.")
-                return
-
-            # Extract column headers
-            headers = result[0].keys()
-
-            # Convert the list of dictionaries into a list of lists
-            table_data = [[row[col] for col in headers] for row in result]
-
-            # Use tabulate to format the data as a table
-            table = tabulate(table_data, headers=headers, tablefmt="pretty")
-
-            # Print the formatted table
-            print(table)
     except pymysql.Error as e:
         print(f"Error: {e}")
 
@@ -162,28 +135,10 @@ def call_get_shelter_statistics_procedure(connection, shelter_name):
 def call_get_all_residents_procedure(connection, shelter_name):
     try:
         with connection.cursor() as cursor:
-            # Call the stored procedure
             cursor.callproc('ViewResidentsInShelter', [shelter_name])
-
-            # Fetch all the results
             result = cursor.fetchall()
+            print_table(result)
 
-            # Check if there are shelters to display
-            if not result:
-                print("No residents found.")
-                return
-
-            # Extract column headers
-            headers = result[0].keys()
-
-            # Convert the list of dictionaries into a list of lists
-            table_data = [[row[col] for col in headers] for row in result]
-
-            # Use tabulate to format the data as a table
-            table = tabulate(table_data, headers=headers, tablefmt="pretty")
-
-            # Print the formatted table
-            print(table)
     except pymysql.Error as e:
         print(f"Error: {e}")
 
@@ -191,27 +146,47 @@ def call_get_all_residents_procedure(connection, shelter_name):
 def call_get_all_past_residents_procedure(connection, shelter_name):
     try:
         with connection.cursor() as cursor:
-            # Call the stored procedure
             cursor.callproc('ViewPastResidentsInShelter', [shelter_name])
-
-            # Fetch all the results
             result = cursor.fetchall()
+            print_table(result)
 
-            # Check if there are shelters to display
-            if not result:
-                print("No residents found.")
-                return
-
-            # Extract column headers
-            headers = result[0].keys()
-
-            # Convert the list of dictionaries into a list of lists
-            table_data = [[row[col] for col in headers] for row in result]
-
-            # Use tabulate to format the data as a table
-            table = tabulate(table_data, headers=headers, tablefmt="pretty")
-
-            # Print the formatted table
-            print(table)
     except pymysql.Error as e:
         print(f"Error: {e}")
+
+def call_insert_new_resident_procedure(db_connection, first_name, last_name, shelter_name, gender, dob, phone, join_date):
+    try:
+        with db_connection.cursor() as cursor:
+            cursor.callproc('InsertNewResident', (first_name, last_name, shelter_name, gender, dob, phone, join_date))
+            db_connection.commit()
+            print("\nNew resident added successfully!")
+    except pymysql.Error as e:
+        print(f"Error: {e}")
+
+def remove_resident_procedure(db_connection, resident_id, shelter_name):
+    try:
+        with db_connection.cursor() as cursor:
+            cursor.callproc('RemoveResident', [resident_id, shelter_name])
+            result = cursor.fetchone()
+            print(result['status'])
+            db_connection.commit()
+
+    except pymysql.Error as e:
+        print(f"Error: {e}")
+
+def update_leave_date_procedure(db_connection, resident_id, shelter_name, leave_date):
+    try:
+        with db_connection.cursor() as cursor:
+            # Call the stored procedure
+            cursor.callproc('UpdateLeaveDate', (resident_id, shelter_name, leave_date))
+
+            # Fetch the result
+            result = cursor.fetchone()
+
+            # Print the status
+            if result:
+                print(result['status'])
+                db_connection.commit()
+            else:
+                print("Error: Unable to fetch the result.")
+    except OperationalError as e:
+        print(f"Error calling the stored procedure: {e}")
