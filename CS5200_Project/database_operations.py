@@ -39,7 +39,6 @@ def print_table(result):
     if not result:
         print("No records found.")
         return
-    
     headers = result[0].keys()
     table_data = [[row[col] for col in headers] for row in result]
     table = tabulate(table_data, headers=headers, tablefmt="pretty")
@@ -48,7 +47,6 @@ def print_table(result):
 def add_new_admin(connection, email, username, password):
     try:
         if connection:
-            # Call the stored procedure to insert a new admin
             call_insert_new_admin_procedure(connection, email, username, password)
             return True
         else:
@@ -61,16 +59,10 @@ def add_new_admin(connection, email, username, password):
 def call_insert_new_admin_procedure(connection, email, username, password):
     try:
         with connection.cursor() as cursor:
-            # Call the stored procedure
             cursor.callproc('InsertNewAdmin', (email, username, password))
-            
-            # Fetch the result
             result = cursor.fetchone()
             print(result['status'])
-            
-            # Commit the changes to the database
             connection.commit()
-
     except pymysql.Error as e:
         print(f"Error: {e}")
 
@@ -176,13 +168,8 @@ def remove_resident_procedure(db_connection, resident_id, shelter_name):
 def update_leave_date_procedure(db_connection, resident_id, shelter_name, leave_date):
     try:
         with db_connection.cursor() as cursor:
-            # Call the stored procedure
             cursor.callproc('UpdateLeaveDate', (resident_id, shelter_name, leave_date))
-
-            # Fetch the result
             result = cursor.fetchone()
-
-            # Print the status
             if result:
                 print(result['status'])
                 db_connection.commit()
@@ -190,3 +177,49 @@ def update_leave_date_procedure(db_connection, resident_id, shelter_name, leave_
                 print("Error: Unable to fetch the result.")
     except OperationalError as e:
         print(f"Error calling the stored procedure: {e}")
+
+def add_health_report_procedure(db_connection, shelter_name, health_report_details, resident_conditions, resident_allergies, resident_medication):
+    try:
+        with db_connection.cursor() as cursor:
+            cursor.callproc('AddHealthReport', (shelter_name, health_report_details, resident_conditions, resident_allergies, resident_medication))
+            result = cursor.fetchone()
+            print(result['status'])
+            db_connection.commit()
+    except pymysql.Error as e:
+        print(f"Error calling AddHealthReport procedure: {e}")
+
+def add_resident_employment_record_procedure(db_connection, shelter_name, employment_status, employer_name, job_title, employment_begin_date, employment_end_date):
+    try:
+        with db_connection.cursor() as cursor:
+            cursor.callproc('AddResidentEmploymentRecord', (shelter_name, employment_status, employer_name, job_title, employment_begin_date, employment_end_date))
+            result = cursor.fetchone()
+            print(result['status'])
+            db_connection.commit()
+    except pymysql.MySQLError as e:
+        print(f"Error calling AddResidentEmploymentRecord procedure: {e}")
+
+def call_view_health_records_procedure(db_connection, resident_id, shelter_name):
+    try:
+        with db_connection.cursor() as cursor:
+            cursor.callproc('ViewHealthRecords', [resident_id, shelter_name])
+            result = cursor.fetchall()
+            if result and 'status' in result [0]:
+                print(result[0]['status'])
+            else:
+                print_table(result)
+
+    except pymysql.Error as e:
+        print(f"Error: {e}")
+
+def call_view_employment_records_procedure(db_connection, resident_id, shelter_name):
+    try:
+        with db_connection.cursor() as cursor:
+            cursor.callproc('ViewEmploymentRecords', [resident_id, shelter_name])
+            result = cursor.fetchall()
+            if result and 'status' in result [0]:
+                print(result[0]['status'])
+            else:
+                print_table(result)
+
+    except pymysql.Error as e:
+        print(f"Error: {e}")

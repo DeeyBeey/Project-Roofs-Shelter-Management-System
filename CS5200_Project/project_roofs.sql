@@ -50,12 +50,12 @@ CREATE TABLE resident_employment(
     employment_begin DATE,
     employment_end DATE,
     FOREIGN KEY (resident_id) REFERENCES resident(resident_id)
-    ON UPDATE RESTRICT ON DELETE RESTRICT,
+    ON UPDATE CASCADE ON DELETE CASCADE,
     CHECK (
         (employment_status = TRUE AND employer_name IS NOT NULL AND job_title IS NOT NULL AND employment_begin IS NOT NULL) OR
         (employment_status = FALSE AND employer_name IS NULL AND job_title IS NULL AND employment_begin IS NULL AND employment_end IS NULL))
     );
-
+    
 -- table storing resident health details    
 CREATE TABLE resident_health(
 	resident_id INT,
@@ -65,7 +65,7 @@ CREATE TABLE resident_health(
     resident_allergies VARCHAR(512),
     resident_medication VARCHAR(512),
     FOREIGN KEY (resident_id) REFERENCES resident(resident_id)
-    ON UPDATE RESTRICT ON DELETE RESTRICT
+    ON UPDATE CASCADE ON DELETE CASCADE
 );
 
 -- table storing services provided
@@ -77,7 +77,9 @@ CREATE TABLE shelter_service(
 	service_name VARCHAR(255) NOT NULL,
 	shelter_name VARCHAR(128) NOT NULL,
     FOREIGN KEY (service_name) REFERENCES service(service_name)
-    ON UPDATE RESTRICT ON DELETE RESTRICT
+    ON UPDATE CASCADE ON DELETE CASCADE,
+    FOREIGN KEY (shelter_name) REFERENCES shelter(shelter_name)
+    ON UPDATE CASCADE ON DELETE CASCADE
 );
 
 -- table storing services accessed by a resident
@@ -85,12 +87,10 @@ CREATE TABLE resident_services(
 	resident_id INT NOT NULL,
     service_name VARCHAR(255) NOT NULL,
     FOREIGN KEY (resident_id) REFERENCES resident(resident_id)
-    ON UPDATE RESTRICT ON DELETE RESTRICT,
+    ON UPDATE CASCADE ON DELETE CASCADE,
     FOREIGN KEY (service_name) REFERENCES service(service_name)
-    ON UPDATE RESTRICT ON DELETE RESTRICT
+    ON UPDATE CASCADE ON DELETE CASCADE
 );
-
-DROP TABLE resident_services;
 
 -- table storing volunteer information
 CREATE TABLE volunteer(
@@ -106,9 +106,9 @@ CREATE TABLE volunteer_shelter(
 	volunteer_id INT NOT NULL,
     shelter_name VARCHAR(128) NOT NULL,
     FOREIGN KEY (volunteer_id) REFERENCES volunteer(volunteer_id)
-    ON UPDATE RESTRICT ON DELETE RESTRICT,
+    ON UPDATE CASCADE ON DELETE CASCADE,
     FOREIGN KEY (shelter_name) REFERENCES shelter(shelter_name)
-    ON UPDATE RESTRICT ON DELETE RESTRICT
+    ON UPDATE CASCADE ON DELETE CASCADE
 );
 
 -- table storing information about the donations made to the shelter.
@@ -119,7 +119,7 @@ CREATE TABLE donation(
     donation_description VARCHAR(1000) NOT NULL,
     shelter_name VARCHAR (128) NOT NULL,
     FOREIGN KEY (shelter_name) REFERENCES shelter (shelter_name)
-    ON UPDATE RESTRICT ON DELETE RESTRICT
+    ON UPDATE CASCADE ON DELETE CASCADE
 );
 
 -- table storing information about meals provided by a shelter
@@ -130,7 +130,7 @@ CREATE TABLE meal(
     meal_description VARCHAR(255) NOT NULL,
 	shelter_name VARCHAR(128) NOT NULL,
     FOREIGN KEY (shelter_name) REFERENCES shelter (shelter_name)
-    ON UPDATE RESTRICT ON DELETE RESTRICT
+    ON UPDATE CASCADE ON DELETE CASCADE
 );
 
 -- table storing information about meals consumed by a resident.
@@ -138,9 +138,9 @@ CREATE TABLE resident_meal(
 	meal_id INT NOT NULL,
     resident_id INT NOT NULL,
 	FOREIGN KEY (meal_id) REFERENCES meal(meal_id)
-    ON UPDATE RESTRICT ON DELETE RESTRICT,
+    ON UPDATE CASCADE ON DELETE CASCADE,
     FOREIGN KEY (resident_id) REFERENCES resident(resident_id)
-    ON UPDATE RESTRICT ON DELETE RESTRICT
+    ON UPDATE CASCADE ON DELETE CASCADE
     );
 
 -- insert into admin (AES_ENCRYPT)    
@@ -504,7 +504,123 @@ END //
 
 DELIMITER ;
 
+DELIMITER //
 
+CREATE PROCEDURE AddHealthReport(
+    IN shelter_name_p VARCHAR(128),
+    IN health_report_details_p VARCHAR(1000),
+    IN resident_conditions_p VARCHAR(255),
+    IN resident_allergies_p VARCHAR(255),
+    IN resident_medication_p VARCHAR(255)
+    
+)
+BEGIN
+    DECLARE latest_resident_id INT;
+    DECLARE join_date_resident DATE;
+
+    -- Find the latest inserted resident
+    SELECT resident_id, join_date INTO latest_resident_id, join_date_resident
+    FROM resident
+    WHERE shelter_name = shelter_name_p
+    ORDER BY resident_id DESC
+    LIMIT 1;
+
+    -- Add health report for the latest resident
+    INSERT INTO resident_health (resident_id, health_report_date, health_report_details, resident_condition, resident_allergies, resident_medication)
+    VALUES (latest_resident_id, join_date_resident, health_report_details_p, resident_conditions_p, resident_allergies_p, resident_medication_p);
+
+    SELECT '\nHealth report added successfully.' AS status;
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+CREATE PROCEDURE AddResidentEmploymentRecord(
+    IN shelter_name_p VARCHAR(255),
+    IN employment_status_p BOOLEAN,
+    IN employer_name_p VARCHAR(255),
+    IN job_title_p VARCHAR(255),
+    IN employment_begin_date_p DATE,
+    IN employment_end_date_p DATE
+)
+BEGIN
+    DECLARE latest_resident_id INT;
+
+    -- Get the latest resident_id
+    SELECT MAX(resident_id) INTO latest_resident_id
+    FROM resident
+    WHERE shelter_name = shelter_name_p;
+
+    -- Insert the employment record
+    INSERT INTO resident_employment (resident_id, employment_status, employer_name, job_title, employment_begin, employment_end)
+    VALUES (
+        latest_resident_id,
+        employment_status_p,
+        employer_name_p,
+        job_title_p,
+        employment_begin_date_p,
+        employment_end_date_p
+    );
+
+    SELECT 'Resident employment record added successfully.' AS status;
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+CREATE PROCEDURE ViewHealthRecords(
+    IN resident_id_p INT,
+    IN shelter_name_p VARCHAR(255)
+)
+BEGIN
+    DECLARE shelter_name_db VARCHAR(255);
+
+    -- Check if the provided resident ID belongs to the specified shelter
+    SELECT shelter_name INTO shelter_name_db
+    FROM resident
+    WHERE resident_id = resident_id_p;
+
+    IF shelter_name_db IS NOT NULL AND shelter_name_db = shelter_name_p THEN
+        -- Fetch health records for the resident
+        SELECT health_report_date, health_report_details, resident_condition, resident_allergies, resident_medication
+        FROM resident_health
+        WHERE resident_id = resident_id_p;
+    ELSE
+        SELECT 'Error: Provided Shelter Name does not match the resident\'s shelter.' AS status;
+    END IF;
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+CREATE PROCEDURE ViewEmploymentRecords(
+    IN resident_id_p INT,
+    IN shelter_name_p VARCHAR(255)
+)
+BEGIN
+    DECLARE shelter_name_db VARCHAR(255);
+
+    -- Fetch the shelter_name associated with the resident
+    SELECT shelter_name INTO shelter_name_db
+    FROM resident
+    WHERE resident_id = resident_id_p;
+
+    -- Check if the provided shelter_name matches the shelter_name associated with the resident
+    IF shelter_name_db = shelter_name_p THEN
+        -- Fetch the employment records for the resident
+        SELECT *
+        FROM resident_employment
+        WHERE resident_id = resident_id_p;
+
+    ELSE
+        SELECT 'Error: Provided Shelter Name does not match the resident\'s shelter.' AS status;
+    END IF;
+END //
+
+DELIMITER ;
 
 
 

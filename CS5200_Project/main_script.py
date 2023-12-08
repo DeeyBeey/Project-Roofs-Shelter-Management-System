@@ -14,16 +14,61 @@ def is_valid_phone_number(phone_number):
     phone_regex = r'^\+?1?\s*[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}$'
     return re.match(phone_regex, phone_number) is not None
 
+def submenu(db_connection, shelter_name):
+    while True:
+        choice = input("\nSelect whether you want to manage residents or volunteers or donations. \nFor residents simply type 'residents', for volunteers type 'volunteers', for donations type 'donations': ").lower()
+        if choice == "residents":
+            resident_manipulation(db_connection, shelter_name)
+        elif choice == "volunteers":
+            print("TODO: Volunteers")
+        elif choice == "donations":
+            print("TODO: Doncations")
+        else:
+            print("\nInvalid choice.")
+def resident_employment(db_connection, shelter_name):
+    print("\nAdd the resident's employment records")
+    emp_status = input("Is the resident employed? (Enter 'yes' or 'no'): ").lower() == 'yes'
+
+    if emp_status:
+        employment_status = True
+        employer_name = input("Enter employer name: ")
+        job_title = input("Enter job title: ")
+        employment_begin_date = input("Enter employment begin date (YYYY-MM-DD): ")
+        employment_end_date = input("Enter employment end date (YYYY-MM-DD): ")
+        if employment_end_date =="":
+            employment_end_date=None
+    else:
+        employment_status = False
+        employer_name = job_title = employment_begin_date = employment_end_date = None
+    add_resident_employment_record_procedure(db_connection, shelter_name, employment_status, employer_name, job_title, employment_begin_date, employment_end_date)
+
+def resident_health(db_connection, shelter_name):
+    print("\nAdd the resident's health records")
+    while True:
+        health_report_details = input("Enter resident's health report details: ")
+        if health_report_details.strip():
+            break
+        else:
+            print("Health report details cannot be empty. Please enter valid information.")
+    resident_conditions = input("Enter resident's conditions: ")
+    resident_allergies = input("Enter resident's allergies: ")
+    resident_medication = input("Enter resident's medication prescription: ")
+
+    add_health_report_procedure(db_connection, shelter_name, health_report_details, resident_conditions, resident_allergies, resident_medication)
+    resident_employment(db_connection, shelter_name)
+
 def resident_manipulation(db_connection, shelter_name):
     while True:
+        print("\nNote: View the IDs of current residents first to proceed with operations 5-7")
         print(f"\nManage residents of {shelter_name}")
         print("1. View current residents")
         print("2. View past residents")
         print("3. Add new resident record")
-        print("4. Update current resident leave date to indicate they have left the shelter (view current residents first to know their IDs)")
-        print("5. Delete current resident record (view current residents first to know their IDs)")
-
-        choice = input("\nEnter your choice (1/2/3/4): ")
+        print("4. Update current resident leave date to indicate they have left the shelter")
+        print("5. Delete current resident record")
+        print("6. View current resident's health records")
+        print("7. View current resident's employment records")
+        choice = input("\nEnter your choice (1/2/3/4/5/6/7): ")
 
         if choice == "1":
             call_get_all_residents_procedure(db_connection, shelter_name)
@@ -56,6 +101,7 @@ def resident_manipulation(db_connection, shelter_name):
                 break
 
             call_insert_new_resident_procedure(db_connection, first_name, last_name, shelter_name, gender, dob, phone, join_date)
+            resident_health(db_connection, shelter_name)
 
         if choice == "4":
             while True:
@@ -88,6 +134,28 @@ def resident_manipulation(db_connection, shelter_name):
                 except ValueError:
                     print(f"Error: Enter an integer value for ID")
             remove_resident_procedure(db_connection, resident_id, shelter_name)
+
+        if choice == "6":
+            while True:
+                try:
+                    resident_id = int(input("Enter the ID of resident whose health records you want to view: "))
+                    if resident_id <= 0:
+                        raise ValueError("Resident ID must be a positive integer.")
+                    break 
+                except ValueError:
+                    print(f"Error: Enter an integer value for ID")
+            call_view_health_records_procedure(db_connection, resident_id, shelter_name)
+
+        if choice == "7":
+            while True:
+                try:
+                    resident_id = int(input("Enter the ID of resident whose employment records you want to delete: "))
+                    if resident_id <= 0:
+                        raise ValueError("Resident ID must be a positive integer.")
+                    break 
+                except ValueError:
+                    print(f"Error: Enter an integer value for ID")
+            call_view_employment_records_procedure(db_connection, resident_id, shelter_name)
 
 
 def main():
@@ -136,19 +204,22 @@ def main():
                     if shelter_initials == "bcs":
                         shelter_name = "Boston Community Shelter"
                         call_get_shelter_statistics_procedure(db_connection, shelter_name)
-                        resident_manipulation(db_connection, shelter_name)
+                        submenu(db_connection, shelter_name)
+                        #resident_manipulation(db_connection, shelter_name)
 
                     
                     elif shelter_initials == "bs":
                         shelter_name = "Brigham Shelter"
                         call_get_shelter_statistics_procedure(db_connection, shelter_name)
-                        resident_manipulation(db_connection, shelter_name)
+                        submenu(db_connection, shelter_name)
+                        # resident_manipulation(db_connection, shelter_name)
 
 
                     elif shelter_initials == "hhs":
                         shelter_name = "Holy Hearts Shelter"
                         call_get_shelter_statistics_procedure(db_connection, shelter_name)
-                        resident_manipulation(db_connection, shelter_name)
+                        submenu(db_connection, shelter_name)
+                        # resident_manipulation(db_connection, shelter_name)
                     
                     else:
                         print("\n Invalid choice. Please enter a valid option: bcs/bs/hhs") 
@@ -169,7 +240,6 @@ def main():
         else:
             print("\nInvalid choice. Please enter a valid option (1/2/3/4).")
 
-    # Close the connection when done
     close_connection(db_connection)
 
 if __name__ == "__main__":
