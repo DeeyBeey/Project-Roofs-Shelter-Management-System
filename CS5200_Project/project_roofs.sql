@@ -82,16 +82,6 @@ CREATE TABLE shelter_service(
     ON UPDATE CASCADE ON DELETE CASCADE
 );
 
--- table storing services accessed by a resident
-CREATE TABLE resident_services(
-	resident_id INT NOT NULL,
-    service_name VARCHAR(255) NOT NULL,
-    FOREIGN KEY (resident_id) REFERENCES resident(resident_id)
-    ON UPDATE CASCADE ON DELETE CASCADE,
-    FOREIGN KEY (service_name) REFERENCES service(service_name)
-    ON UPDATE CASCADE ON DELETE CASCADE
-);
-
 -- table storing volunteer information
 CREATE TABLE volunteer(
 	volunteer_id INT AUTO_INCREMENT PRIMARY KEY NOT NULL,
@@ -121,27 +111,6 @@ CREATE TABLE donation(
     FOREIGN KEY (shelter_name) REFERENCES shelter (shelter_name)
     ON UPDATE CASCADE ON DELETE CASCADE
 );
-
--- table storing information about meals provided by a shelter
-CREATE TABLE meal(
-	meal_id INT AUTO_INCREMENT PRIMARY KEY NOT NULL,
-	meal_type ENUM("Breakfast","Lunch","Dinner","Snack","Brunch") NOT NULL,
-    meal_date DATE NOT NULL,
-    meal_description VARCHAR(255) NOT NULL,
-	shelter_name VARCHAR(128) NOT NULL,
-    FOREIGN KEY (shelter_name) REFERENCES shelter (shelter_name)
-    ON UPDATE CASCADE ON DELETE CASCADE
-);
-
--- table storing information about meals consumed by a resident.
-CREATE TABLE resident_meal(
-	meal_id INT NOT NULL,
-    resident_id INT NOT NULL,
-	FOREIGN KEY (meal_id) REFERENCES meal(meal_id)
-    ON UPDATE CASCADE ON DELETE CASCADE,
-    FOREIGN KEY (resident_id) REFERENCES resident(resident_id)
-    ON UPDATE CASCADE ON DELETE CASCADE
-    );
 
 -- insert into admin (AES_ENCRYPT)    
 INSERT INTO pr_admin 
@@ -278,12 +247,10 @@ VALUES
 ("Sal", "King", "2023-12-05", "Snow shoes", "Holy Hearts Shelter"),
 ("Daniel", "Scott", "2023-12-08", "Groceries", "Holy Hearts Shelter");
 
--- TODO: 1. Donation, 2. Meal, 3. Resident Meal.
-
 -- Procedures START:
 
+-- Procedure to insert a new admin to handle shelters.
 DELIMITER //
-
 CREATE PROCEDURE InsertNewAdmin(
     IN admin_email VARCHAR(255),
     IN admin_username VARCHAR(255),
@@ -291,60 +258,44 @@ CREATE PROCEDURE InsertNewAdmin(
 )
 BEGIN
     DECLARE hashed_password VARBINARY(255);
-    
-    -- Hash the provided password
     SET hashed_password = AES_ENCRYPT(admin_password, 'CS5200');
-    
-    -- Insert new admin into pr_admin table
     INSERT INTO pr_admin (email_id, username, admin_password)
     VALUES (admin_email, admin_username, hashed_password);
     
-    SELECT "New admin added successfully" AS status;
+    SELECT "\nNew admin added successfully" AS status;
 END //
-
 DELIMITER ;
 
-
+-- Procedure to fetch all admins from the table for the sake of evaluation.
 DELIMITER //
-
 CREATE PROCEDURE GetAllAdmins()
 BEGIN
-    -- Select email, username, and password of all admins
     SELECT email_id, username, CAST(AES_DECRYPT(admin_password, 'CS5200') AS CHAR) AS pass
     FROM pr_admin;
 END //
-
 DELIMITER ;
 
-DROP PROCEDURE GetAllAdmins;
-
+-- Procedure to fetch all shelters.
 DELIMITER //
-
 CREATE PROCEDURE GetAllShelters()
 BEGIN
-    -- Select details of all shelters
     SELECT * FROM shelter;
 END //
-
 DELIMITER ;
 
+-- Procedure to view statistics.
 DELIMITER //
-
 CREATE PROCEDURE GetShelterStatistics(IN shelter_name_p VARCHAR(255))
 BEGIN
-    -- Declare variables to store statistics
     DECLARE resident_count INT;
     DECLARE donation_count INT;
     DECLARE volunteer_count INT;
-    DECLARE meals_provided_count INT;
     DECLARE services_list VARCHAR(255);
 
-    -- Fetch statistics for the given shelter
 	SELECT COUNT(*) INTO resident_count
 	FROM resident
 	WHERE shelter_name = shelter_name_p 
 	AND (leave_date IS NULL OR leave_date > CURRENT_DATE);
-
 
     SELECT COUNT(*) INTO donation_count
     FROM donation
@@ -354,33 +305,24 @@ BEGIN
     FROM volunteer_shelter
     WHERE shelter_name = shelter_name_p;
 
-    SELECT COUNT(meal_id) INTO meals_provided_count
-    FROM meal
-    WHERE shelter_name = shelter_name_p;
-
     SELECT GROUP_CONCAT(DISTINCT service_name) INTO services_list
     FROM shelter_service
     WHERE shelter_name = shelter_name_p;
 
-    -- Print the statistics
     SELECT
         resident_count AS 'Number of Residents',
         donation_count AS 'Number of Donations',
         volunteer_count AS 'Number of Volunteers',
-        meals_provided_count AS 'Number of Meals Provided',
         services_list AS 'Services Provided'
     FROM DUAL;
 
 END //
-
 DELIMITER ;
 
-CALL GetShelterStatistics("Holy Hearts Shelter");
-
+-- Procedure to view residents in the shelter.
 DELIMITER //
 CREATE PROCEDURE ViewResidentsInShelter(IN shelter_name_p VARCHAR(255))
 BEGIN
-    -- Fetch and display details of all residents in the specified shelter
     SELECT
         resident_id AS id,
         first_name AS FirstName,
@@ -394,13 +336,12 @@ BEGIN
     WHERE shelter_name = shelter_name_p
     AND (leave_date IS NULL OR leave_date > CURRENT_DATE);
 END //
-
 DELIMITER ;
 
+-- Procedure to view residents who have left the shelter (past residents).
 DELIMITER //
 CREATE PROCEDURE ViewPastResidentsInShelter(IN shelter_name_p VARCHAR(255))
 BEGIN
-    -- Fetch and display details of all residents in the specified shelter
     SELECT
 		resident_id AS id,
         first_name AS FirstName,
@@ -414,10 +355,9 @@ BEGIN
     WHERE shelter_name = shelter_name_p
     AND (leave_date IS NOT NULL OR leave_date < CURRENT_DATE);
 END //
-
-
 DELIMITER ;
 
+-- Procedure to insert a new resident into shelter.
 DELIMITER //
 CREATE PROCEDURE InsertNewResident(
     IN first_name_p VARCHAR(255),
@@ -429,26 +369,20 @@ CREATE PROCEDURE InsertNewResident(
     IN join_date_p DATE
 )
 BEGIN
-    DECLARE new_resident_id INT;  -- Declare variable to store the new resident ID
-    
-    -- Check if join_date is not greater than the current date
+    DECLARE new_resident_id INT;
+
     IF join_date_p > CURDATE() THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Invalid join date. Please enter a date not greater than the current date.';
     ELSE
-        -- Insert a new resident record
         INSERT INTO resident (first_name, last_name, shelter_name, gender, dob, phone_no, join_date)
         VALUES (first_name_p, last_name_p, shelter_name_p, gender_p, dob_p, phone_no_p, join_date_p);
-
-        -- Get the ID of the newly inserted resident
         SELECT LAST_INSERT_ID() INTO new_resident_id;
     END IF;
-    
-    -- Return the ID of the newly inserted resident
     SELECT new_resident_id AS new_resident_id;
 END //
-
 DELIMITER ;
 
+-- Procedure to remove a resident.
 DELIMITER //
 CREATE PROCEDURE RemoveResident(
     IN resident_id_p INT,
@@ -457,26 +391,23 @@ CREATE PROCEDURE RemoveResident(
 BEGIN
     DECLARE shelter_name_db VARCHAR(255);
 
-    -- Fetch the shelter_name associated with the resident
     SELECT shelter_name INTO shelter_name_db
     FROM resident
     WHERE resident_id = resident_id_p;
 
-    -- Check if the resident exists and belongs to the specified shelter
     IF shelter_name_db IS NOT NULL AND shelter_name_db = shelter_name_p THEN
-        -- Remove the resident record
         DELETE FROM resident
         WHERE resident_id = resident_id_p;
 
-        SELECT 'Resident removed successfully.' AS status;
+        SELECT '\nResident removed successfully.' AS status;
     ELSE
-        SELECT 'Error: Resident not found or not part of the specified shelter.' AS status;
+        SELECT '\nError: Resident not found or not part of the specified shelter.' AS status;
     END IF;
 END //
 DELIMITER ;
 
+-- Procedure to update leave date to show that a resident has left the shelter.
 DELIMITER //
-
 CREATE PROCEDURE UpdateLeaveDate(
     IN resident_id_p INT,
     IN shelter_name_p VARCHAR(255),
@@ -486,63 +417,54 @@ BEGIN
     DECLARE shelter_name_db VARCHAR(255);
     DECLARE join_date_db DATE;
 
-    -- Fetch the shelter_name and join_date associated with the resident
     SELECT shelter_name, join_date INTO shelter_name_db, join_date_db
     FROM resident
     WHERE resident_id = resident_id_p;
 
-    -- Check if the provided shelter_name matches the shelter_name associated with the resident
     IF shelter_name_db = shelter_name_p THEN
-        -- Check if the provided leave date is valid
         IF leave_date_p IS NOT NULL AND leave_date_p <= CURRENT_DATE AND leave_date_p >= join_date_db THEN
-            -- Update the leave date for the resident
             UPDATE resident
             SET leave_date = leave_date_p
             WHERE resident_id = resident_id_p;
 
-            SELECT 'Leave date updated successfully.' AS status;
+            SELECT '\nLeave date updated successfully.' AS status;
         ELSE
-            SELECT 'Error: Invalid leave date. Leave date must be less than or same as current date and greater than or equal to join date.' AS status;
+            SELECT '\nError: Invalid leave date. Leave date must be less than or same as current date and greater than or equal to join date.' AS status;
         END IF;
     ELSE
-        SELECT 'Error: Provided Shelter Name does not match the resident\'s shelter.' AS status;
+        SELECT '\nError: Provided Shelter Name does not match the resident\'s shelter.' AS status;
     END IF;
 END //
-
 DELIMITER ;
 
+-- Procedure to add a health report.
 DELIMITER //
-
 CREATE PROCEDURE AddHealthReport(
     IN shelter_name_p VARCHAR(128),
     IN health_report_details_p VARCHAR(1000),
     IN resident_conditions_p VARCHAR(255),
     IN resident_allergies_p VARCHAR(255),
     IN resident_medication_p VARCHAR(255)
-    
 )
 BEGIN
     DECLARE latest_resident_id INT;
     DECLARE join_date_resident DATE;
 
-    -- Find the latest inserted resident
     SELECT resident_id, join_date INTO latest_resident_id, join_date_resident
     FROM resident
     WHERE shelter_name = shelter_name_p
     ORDER BY resident_id DESC
     LIMIT 1;
 
-    -- Add health report for the latest resident
     INSERT INTO resident_health (resident_id, health_report_date, health_report_details, resident_condition, resident_allergies, resident_medication)
     VALUES (latest_resident_id, join_date_resident, health_report_details_p, resident_conditions_p, resident_allergies_p, resident_medication_p);
 
     SELECT '\nHealth report added successfully.' AS status;
 END //
-
 DELIMITER ;
 
+-- Procedure to add a new resident employment record.
 DELIMITER //
-
 CREATE PROCEDURE AddResidentEmploymentRecord(
     IN shelter_name_p VARCHAR(255),
     IN employment_status_p BOOLEAN,
@@ -554,12 +476,10 @@ CREATE PROCEDURE AddResidentEmploymentRecord(
 BEGIN
     DECLARE latest_resident_id INT;
 
-    -- Get the latest resident_id
     SELECT MAX(resident_id) INTO latest_resident_id
     FROM resident
     WHERE shelter_name = shelter_name_p;
 
-    -- Insert the employment record
     INSERT INTO resident_employment (resident_id, employment_status, employer_name, job_title, employment_begin, employment_end)
     VALUES (
         latest_resident_id,
@@ -569,14 +489,12 @@ BEGIN
         employment_begin_date_p,
         employment_end_date_p
     );
-
-    SELECT 'Resident employment record added successfully.' AS status;
+    SELECT '\nResident employment record added successfully.' AS status;
 END //
-
 DELIMITER ;
 
+-- Procedure to view health records of residents.
 DELIMITER //
-
 CREATE PROCEDURE ViewHealthRecords(
     IN resident_id_p INT,
     IN shelter_name_p VARCHAR(255)
@@ -584,25 +502,22 @@ CREATE PROCEDURE ViewHealthRecords(
 BEGIN
     DECLARE shelter_name_db VARCHAR(255);
 
-    -- Check if the provided resident ID belongs to the specified shelter
     SELECT shelter_name INTO shelter_name_db
     FROM resident
     WHERE resident_id = resident_id_p;
 
     IF shelter_name_db IS NOT NULL AND shelter_name_db = shelter_name_p THEN
-        -- Fetch health records for the resident
         SELECT health_report_date, health_report_details, resident_condition, resident_allergies, resident_medication
         FROM resident_health
         WHERE resident_id = resident_id_p;
     ELSE
-        SELECT 'Error: Provided Shelter Name does not match the resident\'s shelter.' AS status;
+        SELECT '\nError: Provided Shelter Name does not match the resident\'s shelter.' AS status;
     END IF;
 END //
-
 DELIMITER ;
 
+-- Procedure to view employment records of residents.
 DELIMITER //
-
 CREATE PROCEDURE ViewEmploymentRecords(
     IN resident_id_p INT,
     IN shelter_name_p VARCHAR(255)
@@ -610,56 +525,48 @@ CREATE PROCEDURE ViewEmploymentRecords(
 BEGIN
     DECLARE shelter_name_db VARCHAR(255);
 
-    -- Fetch the shelter_name associated with the resident
     SELECT shelter_name INTO shelter_name_db
     FROM resident
     WHERE resident_id = resident_id_p;
 
-    -- Check if the provided shelter_name matches the shelter_name associated with the resident
     IF shelter_name_db = shelter_name_p THEN
-        -- Fetch the employment records for the resident
         SELECT *
         FROM resident_employment
         WHERE resident_id = resident_id_p;
 
     ELSE
-        SELECT 'Error: Provided Shelter Name does not match the resident\'s shelter.' AS status;
+        SELECT '\nError: Provided Shelter Name does not match the resident\'s shelter.' AS status;
     END IF;
 END //
-
 DELIMITER ;
 
+-- Procedure to view volunteers at a shelter
 DELIMITER //
-
 CREATE PROCEDURE ViewShelterVolunteers(
     IN shelter_name_p VARCHAR(255)
 )
 BEGIN
-    -- Fetch the volunteer information for the specified shelter
     SELECT v.volunteer_id, v.first_name, v.last_name, v.phone_no
     FROM volunteer v
     INNER JOIN volunteer_shelter vs ON v.volunteer_id = vs.volunteer_id
     WHERE vs.shelter_name = shelter_name_p;
 END //
-
 DELIMITER ;
 
+-- Procedure to view donations received by a shelter
 DELIMITER //
-
 CREATE PROCEDURE ViewShelterDonations(
     IN shelter_name_p VARCHAR(255)
 )
 BEGIN
-    -- Fetch the donation information for the specified shelter
     SELECT first_name, last_name, donation_date, donation_description
     FROM donation
     WHERE shelter_name = shelter_name_p;
 END //
-
 DELIMITER ;
 
+-- Procedure to add donations to the shelter.
 DELIMITER //
-
 CREATE PROCEDURE AddDonationToShelter(
     IN first_name_p VARCHAR(255),
     IN last_name_p VARCHAR(255),
@@ -670,14 +577,12 @@ CREATE PROCEDURE AddDonationToShelter(
 BEGIN
     INSERT INTO donation (first_name, last_name, donation_date, donation_description, shelter_name)
     VALUES (first_name_p, last_name_p, donation_date_p, donation_description_p, shelter_name_p);
-
     SELECT '\nDonation added successfully.' AS status;
 END //
-
 DELIMITER ;
 
+-- Procedure to insert new volunteers.
 DELIMITER //
-
 CREATE PROCEDURE InsertVolunteer(
     IN first_name_p VARCHAR(255),
     IN last_name_p VARCHAR(255),
@@ -697,11 +602,10 @@ BEGIN
 
     SELECT '\nVolunteer added successfully.' AS status;
 END //
-
 DELIMITER ;
 
+-- Procedure to delete a colunteer record.
 DELIMITER //
-
 CREATE PROCEDURE DeleteVolunteer(
     IN volunteer_id_p INT,
     IN shelter_name_p VARCHAR(255)
@@ -709,15 +613,12 @@ CREATE PROCEDURE DeleteVolunteer(
 BEGIN
     DECLARE volunteer_shelter_name VARCHAR(255);
 
-    -- Fetch the shelter_name associated with the volunteer
     SELECT shelter_name INTO volunteer_shelter_name
     FROM volunteer_shelter
     WHERE volunteer_id = volunteer_id_p
     LIMIT 1;
 
-    -- Check if the provided shelter_name matches the volunteer's shelter
     IF volunteer_shelter_name = shelter_name_p THEN
-        -- Delete the volunteer record
         DELETE FROM volunteer
         WHERE volunteer_id = volunteer_id_p;
 
@@ -726,11 +627,10 @@ BEGIN
         SELECT '\nError: Provided Shelter Name does not match the volunteer\'s shelter.' AS status;
     END IF;
 END //
-
 DELIMITER ;
 
+-- Procedure to add resident health record
 DELIMITER //
-
 CREATE PROCEDURE AddResidentHealthRecord(
     IN resident_id_p INT,
     IN shelter_name_p VARCHAR(255),
@@ -743,15 +643,12 @@ CREATE PROCEDURE AddResidentHealthRecord(
 BEGIN
     DECLARE resident_shelter_name VARCHAR(255);
 
-    -- Fetch the shelter_name associated with the resident
     SELECT shelter_name INTO resident_shelter_name
     FROM resident
     WHERE resident_id = resident_id_p
-    LIMIT 1;  -- Limit the result to one row
+    LIMIT 1;  
 
-    -- Check if the provided shelter_name matches the resident's shelter
     IF resident_shelter_name = shelter_name_p THEN
-        -- Insert the health record
         INSERT INTO resident_health (
             resident_id,
             health_report_date,
@@ -767,21 +664,17 @@ BEGIN
             resident_conditions_p,
             resident_allergies_p,
             resident_medications_p
-            
         );
 
-        SELECT 'Resident health record added successfully.' AS status;
+        SELECT '\nResident health record added successfully.' AS status;
     ELSE
-        SELECT 'Error: Provided Shelter Name does not match the resident\'s shelter.' AS status;
+        SELECT '\nError: Provided Shelter Name does not match the resident\'s shelter.' AS status;
     END IF;
 END //
-
 DELIMITER ;
 
+-- Procedure to update resident employment record.
 DELIMITER //
-
-DELIMITER //
-
 CREATE PROCEDURE UpdateResidentEmploymentRecord(
     IN resident_id_p INT,
     IN shelter_name_p VARCHAR(255),
@@ -792,18 +685,13 @@ CREATE PROCEDURE UpdateResidentEmploymentRecord(
     IN employment_end_date_p DATE
 )
 BEGIN
-    -- Declare a variable to store the count of matching records
     DECLARE matching_records_count INT;
-
-    -- Check if there is a matching record in the resident table
     SELECT COUNT(*)
     INTO matching_records_count
     FROM resident
     WHERE resident_id = resident_id_p AND shelter_name = shelter_name_p;
 
-    -- If there is a match, update the employment record
     IF matching_records_count > 0 THEN
-        -- Update the employment record
         UPDATE resident_employment
         SET
             employment_status = employment_status_p,
@@ -813,26 +701,25 @@ BEGIN
             employment_end = employment_end_date_p
         WHERE resident_id = resident_id_p;
 
-        SELECT 'Resident employment record updated successfully.' AS status;
+        SELECT '\nResident employment record updated successfully.' AS status;
     ELSE
-        SELECT 'Error: Provided Resident ID or Shelter Name does not match the existing records.' AS status;
+        SELECT '\nError: Provided Resident ID or Shelter Name does not match the existing records.' AS status;
     END IF;
 END //
-
 DELIMITER ;
 
+-- Procedure to get gender distributions in the shelter.
 DELIMITER //
 CREATE PROCEDURE GetGenderDistribution()
 BEGIN
-    -- Retrieve the gender distribution of residents
     SELECT gender, COUNT(*) as gender_count
     FROM resident
     GROUP BY gender;
 END //
 DELIMITER ;
 
+-- Procedure to get resident distribution in shelters.
 DELIMITER //
-
 CREATE PROCEDURE GetResidentCountByShelter()
 BEGIN
     SELECT
@@ -842,24 +729,14 @@ BEGIN
     GROUP BY shelter_name
     ORDER BY shelter_name;
 END //
-
 DELIMITER ;
 
-SELECT join_date, COUNT(*) as join_count FROM resident GROUP BY join_date;
-
+-- Procedure to get join count by grouping join date.
 DELIMITER //
-
 CREATE PROCEDURE GetJoinCountByDate()
 BEGIN
-    -- Select join date and count for each join date
     SELECT join_date, COUNT(*) AS join_count
     FROM resident
     GROUP BY join_date;
-
 END //
-
 DELIMITER ;
-        
-
-
-

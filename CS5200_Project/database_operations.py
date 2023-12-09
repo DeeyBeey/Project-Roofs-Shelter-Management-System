@@ -1,6 +1,8 @@
-import pymysql
 from tabulate import tabulate
 from pymysql.err import OperationalError
+import pandas as pd
+import matplotlib.pyplot as plt
+import pymysql
 
 def connect_to_database(host, user, password, database):
     try:
@@ -107,20 +109,13 @@ def call_get_all_shelters_procedure(connection):
 def call_get_shelter_statistics_procedure(connection, shelter_name):
     try:
         with connection.cursor() as cursor:
-            # Call the stored procedure with shelter_name as input
             cursor.callproc('GetShelterStatistics', [shelter_name])
-
-            # Fetch the result
             result = cursor.fetchone()
-
-            # Print the statistics
             print("\nShelter Statistics:")
             print(f"Number of Residents: {result['Number of Residents']}")
             print(f"Number of Donations: {result['Number of Donations']}")
             print(f"Number of Volunteers: {result['Number of Volunteers']}")
-            print(f"Number of Meals Provided: {result['Number of Meals Provided']}")
             print(f"Services Provided: {result['Services Provided']}\n")
-
     except pymysql.Error as e:
         print(f"Error: {e}")
 
@@ -130,7 +125,6 @@ def call_get_all_residents_procedure(connection, shelter_name):
             cursor.callproc('ViewResidentsInShelter', [shelter_name])
             result = cursor.fetchall()
             print_table(result)
-
     except pymysql.Error as e:
         print(f"Error: {e}")
 
@@ -141,7 +135,6 @@ def call_get_all_past_residents_procedure(connection, shelter_name):
             cursor.callproc('ViewPastResidentsInShelter', [shelter_name])
             result = cursor.fetchall()
             print_table(result)
-
     except pymysql.Error as e:
         print(f"Error: {e}")
 
@@ -161,7 +154,6 @@ def remove_resident_procedure(db_connection, resident_id, shelter_name):
             result = cursor.fetchone()
             print(result['status'])
             db_connection.commit()
-
     except pymysql.Error as e:
         print(f"Error: {e}")
 
@@ -207,7 +199,6 @@ def call_view_health_records_procedure(db_connection, resident_id, shelter_name)
                 print(result[0]['status'])
             else:
                 print_table(result)
-
     except pymysql.Error as e:
         print(f"Error: {e}")
 
@@ -220,7 +211,6 @@ def call_view_employment_records_procedure(db_connection, resident_id, shelter_n
                 print(result[0]['status'])
             else:
                 print_table(result)
-
     except pymysql.Error as e:
         print(f"Error: {e}")
 
@@ -303,26 +293,14 @@ def update_resident_employment_record(db_connection, resident_id, shelter_name, 
     except pymysql.MySQLError as e:
         print(f"Error calling UpdateResidentEmploymentRecord procedure: {e}")
 
-import pymysql
-import pandas as pd
-import matplotlib.pyplot as plt
 
-def call_and_plot_stored_procedure(connection, procedure_name, plot_kind='pie', y_column=None, x_column=None,bins=None, labels_column=None, autopct='%1.1f%%', startangle=90, title=None, xlabel='', ylabel='', edgecolor=None):
-    # Create a cursor
-    cursor = connection.cursor()
-
+def call_and_plot_stored_procedure(db_connection, procedure_name, plot_kind='pie', y_column=None, x_column=None,bins=None, labels_column=None, autopct='%1.1f%%', startangle=90, title=None, xlabel='', ylabel='', edgecolor=None):
+    cursor = db_connection.cursor()
     try:
-        # Call the stored procedure
         cursor.callproc(procedure_name)
-
-        # Fetch the results from the stored procedure
         results = cursor.fetchall()
-
-        # Create a DataFrame from the results
         columns = [desc[0] for desc in cursor.description]
         df = pd.DataFrame(results, columns=columns)
-
-        # Plot the data
         if plot_kind == 'pie':
             df.plot(kind=plot_kind, y=y_column, labels=df[labels_column], autopct=autopct, startangle=startangle)
         else:
@@ -331,25 +309,5 @@ def call_and_plot_stored_procedure(connection, procedure_name, plot_kind='pie', 
         plt.title(title)
         plt.ylabel(ylabel)
         plt.show()
-
     finally:
-        # Close the cursor
         cursor.close()
-
-def visualize_resident_count_by_shelter(connection):
-    try:
-        query = "CALL GetResidentCountByShelter();"
-        df = pd.read_sql(query, connection)
-
-        # Plot the data
-        df.plot(kind='bar', x='shelter_name', y='resident_count', color='skyblue')
-        plt.title('Number of Residents in Each Shelter')
-        plt.xlabel('Shelter Name')
-        plt.ylabel('Count')
-        plt.show()
-
-    except Exception as e:
-        print(f"Error: {e}")
-
-
-
