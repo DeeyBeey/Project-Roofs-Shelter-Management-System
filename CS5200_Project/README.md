@@ -50,4 +50,4 @@ Creating Project Roofs was an ambition for us, we chose this project after readi
 
 [Dhruv Prakash Belai](mailto:belai.d@northeastern.edu)
 
-[Padmasini Venkat](mailto:venkat.p@northeastern.edu)
+[Padmasini Venkat](mailto:krishnanvenkat.p@northeastern.edu)
