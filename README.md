@@ -27,8 +27,8 @@ Project Roofs is developed to streamline the management of shelters, making it e
 
 To install and run the Project Roofs CLI, follow these steps:
 
-1. Unzip the ```BelaiDVenkatP_Project.rar``` file.
-2. Navigate to Projects Roofs directory: `cd CS5200_Project`
+1. Clone the repository.
+2. Navigate to Projects Roofs directory: `cd Project-Roofs-Shelter-Management-System`
 3. Ensure Python along with MySQL is installed in the system in order to carry out smooth functionality of the application.
 Note: Latest version of Python and MySQL are recommended but not compulsory.
 4. Install dependencies:
